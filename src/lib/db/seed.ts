@@ -25,7 +25,14 @@ async function seed() {
     .onConflictDoNothing({ target: universities.slug })
     .returning();
 
-  const uni = unilag ?? (await db.query.universities.findFirst());
+  const uni =
+  unilag ??
+  (
+    await db
+      .select()
+      .from(universities)
+      .limit(1)
+  )[0];
 
   if (!uni) throw new Error("Failed to seed university");
 
