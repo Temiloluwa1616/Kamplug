@@ -1,26 +1,97 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * KamPlug design tokens (Stage 5).
+ * Every colour pair used in the UI has been checked at WCAG AA (4.5:1) or better.
+ * Verified blue is reserved for the verified tick and nothing else.
+ */
+@theme {
+  /* Surfaces */
+  --color-canvas: #fafaf7;
+  --color-surface: #ffffff;
+  --color-sand: #efece4;
+  --color-line: #e7e5e0;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* Text */
+  --color-ink: #14161f;
+  --color-ink-muted: #5b6070;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  /* Brand */
+  --color-brand: #0b6b4f;
+  --color-brand-deep: #084f3a;
+  --color-brand-soft: #e6f2ec;
+  --color-on-brand: #ffffff;
+
+  /* Accent (Sell action, highlights) */
+  --color-accent: #f5a524;
+  --color-accent-soft: #fef1d6;
+  --color-on-accent: #1a1203;
+
+  /* Status */
+  --color-verified: #1d6fea;
+  --color-verified-soft: #e3eefd;
+  --color-danger: #b42318;
+  --color-danger-soft: #fef3f2;
+
+  /* Type */
+  --font-sans:
+    var(--font-jakarta), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+
+  /* Depth: borders first, shadow only where it earns its place */
+  --shadow-card: 0 1px 2px rgb(20 22 31 / 0.04), 0 10px 28px -14px rgb(20 22 31 / 0.18);
+  --shadow-pop: 0 2px 4px rgb(20 22 31 / 0.06), 0 18px 40px -16px rgb(20 22 31 / 0.28);
+
+  /* One entrance, used once per screen */
+  --animate-rise: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Visible keyboard focus everywhere */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+
+  /* Inputs must be 16px or larger so mobile browsers don't zoom on focus */
+  input,
+  select,
+  textarea {
+    font-size: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
