@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   pgTable,
   uuid,
@@ -7,6 +8,7 @@ import {
   integer,
   index,
   uniqueIndex,
+  check,
 } from "drizzle-orm/pg-core";
 
 // ============================================
@@ -90,14 +92,18 @@ export const users = pgTable(
   "users",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    universityId: uuid("university_id")
-      .notNull()
-      .references(() => universities.id),
+
+    // Nullable on purpose: a brand-new Google user has neither yet.
+    // They are set during onboarding. The CHECK below guarantees
+    // nobody can be marked "onboarded" without them.
+    universityId: uuid("university_id").references(() => universities.id),
+    username: text("username").unique(),
+
     facultyId: uuid("faculty_id").references(() => faculties.id),
     departmentId: uuid("department_id").references(() => departments.id),
-    username: text("username").notNull().unique(),
     displayName: text("display_name").notNull(),
     email: text("email"),
+    emailVerified: boolean("email_verified").notNull().default(false),
     phone: text("phone"),
     avatarUrl: text("avatar_url"),
     bio: text("bio"),
@@ -110,11 +116,16 @@ export const users = pgTable(
   },
   (t) => [
     index("users_university_idx").on(t.universityId),
-    index("users_username_idx").on(t.username),
+    check(
+      "users_onboarded_needs_profile",
+      sql`${t.onboardingCompleted} = false OR (${t.username} IS NOT NULL AND ${t.universityId} IS NOT NULL)`
+    ),
   ]
 );
 
-export const authIdentities = pgTable(
+// Better Auth "account" model, stored in the auth_identities table.
+// One user can have many login methods (Google, phone, ...).
+export const account = pgTable(
   "auth_identities",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -123,7 +134,21 @@ export const authIdentities = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     provider: text("provider").notNull(),
     providerUserId: text("provider_user_id").notNull(),
+
+    // OAuth fields Better Auth expects to be able to store
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+    scope: text("scope"),
+    password: text("password"),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
   },
   (t) => [
     uniqueIndex("auth_identities_provider_idx").on(t.provider, t.providerUserId),
@@ -136,3 +161,43 @@ export const reservedUsernames = pgTable("reserved_usernames", {
   reason: text("reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ============================================
+// BETTER AUTH: sessions, verifications
+// ============================================
+
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    token: text("token").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [index("sessions_user_idx").on(t.userId)]
+);
+
+export const verifications = pgTable(
+  "verifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [index("verifications_identifier_idx").on(t.identifier)]
+);
