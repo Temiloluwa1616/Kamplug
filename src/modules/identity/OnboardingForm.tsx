@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, useEffect, useTransition, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   completeOnboarding,
@@ -10,92 +18,232 @@ import {
 } from "./actions";
 
 type University = { id: string; name: string; shortName: string };
-type Faculty = { id: string; name: string };
-type Department = { id: string; name: string };
+type Option = { id: string; name: string };
+type Props = { universities: University[] };
+type UsernameStatus = "idle" | "checking" | "ok" | "error";
 
-type Props = {
-  universities: University[];
-};
+const USERNAME_MIN = 3;
 
-function Tick() {
+/* ------------------------------ icons ------------------------------ */
+/* Note: the verified-blue tick is reserved for verified sellers.       */
+/* Form feedback uses brand green instead.                              */
+
+function SpinnerIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" className="shrink-0">
-      <circle cx="7" cy="7" r="7" fill="var(--color-verified)" />
-      <path
-        d="M4 7.2l2 2L10 5"
-        fill="none"
-        stroke="#fff"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function Spinner() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true" className="animate-spin">
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" className="animate-spin">
       <circle cx="10" cy="10" r="8" stroke="var(--color-line)" strokeWidth="2.5" />
       <path d="M18 10a8 8 0 0 0-8-8" stroke="var(--color-brand)" strokeWidth="2.5" strokeLinecap="round" />
     </svg>
   );
 }
 
-const FIELD =
-  "w-full h-12 rounded-xl border border-line bg-surface px-4 text-base text-ink placeholder:text-ink-muted/60 transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15";
+function CheckIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" className={className}>
+      <circle cx="10" cy="10" r="10" fill="var(--color-brand)" />
+      <path d="M6 10.3l2.8 2.8L14 7.6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
-const LABEL = "block text-sm font-semibold text-ink mb-2";
+function CrossIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <circle cx="10" cy="10" r="10" fill="var(--color-danger)" />
+      <path d="M7 7l6 6M13 7l-6 6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ChevronIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M5 7.5l5 5 5-5" stroke="var(--color-ink-muted)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/* --------------------------- field pieces --------------------------- */
+
+const CONTROL =
+  "h-13 w-full rounded-xl border border-line bg-surface px-4 text-base transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/15 disabled:bg-sand disabled:text-ink-muted";
+
+function Field({
+  id,
+  label,
+  optional,
+  children,
+}: {
+  id: string;
+  label: string;
+  optional?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className="mb-2 flex items-baseline justify-between text-sm font-semibold text-ink">
+        <span>{label}</span>
+        {optional && <span className="text-xs font-medium text-ink-muted">Optional</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function SelectField({
+  id,
+  label,
+  optional,
+  value,
+  onChange,
+  placeholder,
+  options,
+  loading,
+}: {
+  id: string;
+  label: string;
+  optional?: boolean;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  options: Option[];
+  loading?: boolean;
+}) {
+  return (
+    <Field id={id} label={label} optional={optional}>
+      <div className="relative">
+        <select
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={loading}
+          aria-busy={loading}
+          className={`${CONTROL} appearance-none pr-11 ${value ? "text-ink" : "text-ink-muted"}`}
+        >
+          <option value="">{loading ? "Loading…" : placeholder}</option>
+          {options.map((o) => (
+            <option key={o.id} value={o.id} className="text-ink">
+              {o.name}
+            </option>
+          ))}
+        </select>
+        <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
+          {loading ? <SpinnerIcon /> : <ChevronIcon />}
+        </span>
+      </div>
+    </Field>
+  );
+}
+
+/* ------------------------------- form ------------------------------- */
 
 export function OnboardingForm({ universities }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [done, setDone] = useState(false);
 
-  const [username, setUsername] = useState("");
-  const [usernameStatus, setUsernameStatus] = useState<
-    "idle" | "checking" | "ok" | "error"
-  >("idle");
-  const [usernameMessage, setUsernameMessage] = useState("");
-  const checkRef = useRef(0);
+  // With a single campus there is nothing to choose, so it is preselected.
+  const onlyUniversity = universities.length === 1 ? universities[0] : undefined;
+  const onlyUniversityId = onlyUniversity?.id;
 
-  const [universityId, setUniversityId] = useState("");
-  const [faculties, setFaculties] = useState<Faculty[]>([]);
+  const [universityId, setUniversityId] = useState(onlyUniversityId ?? "");
+  const [faculties, setFaculties] = useState<Option[]>([]);
   const [facultyId, setFacultyId] = useState("");
-  const [loadingFaculties, setLoadingFaculties] = useState(false);
+  const [loadingFaculties, setLoadingFaculties] = useState(Boolean(onlyUniversityId));
 
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const [departments, setDepartments] = useState<Option[]>([]);
   const [departmentId, setDepartmentId] = useState("");
   const [loadingDepartments, setLoadingDepartments] = useState(false);
 
+  const [username, setUsername] = useState("");
+  const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
+  const [usernameMessage, setUsernameMessage] = useState("");
+
   const [error, setError] = useState("");
 
-  // Username check: debounced, cancelled on stale results.
+  // Request counters: a response only counts if it belongs to the latest request.
+  const facultyReq = useRef(0);
+  const departmentReq = useRef(0);
+  const usernameReq = useRef(0);
+
+  const loadFaculties = useCallback(async (forUniversityId: string) => {
+    const req = ++facultyReq.current;
+    try {
+      const list = await fetchFaculties(forUniversityId);
+      if (req === facultyReq.current) setFaculties(list);
+    } catch {
+      if (req === facultyReq.current) {
+        setError("We couldn't load faculties. Check your connection and try again.");
+      }
+    } finally {
+      if (req === facultyReq.current) setLoadingFaculties(false);
+    }
+  }, []);
+
+  const loadDepartments = useCallback(async (forFacultyId: string) => {
+    const req = ++departmentReq.current;
+    try {
+      const list = await fetchDepartments(forFacultyId);
+      if (req === departmentReq.current) setDepartments(list);
+    } catch {
+      if (req === departmentReq.current) {
+        setError("We couldn't load departments. You can skip this and add it later.");
+      }
+    } finally {
+      if (req === departmentReq.current) setLoadingDepartments(false);
+    }
+  }, []);
+
+  // Preselected campus: fetch its faculties on first render.
+  // `loadingFaculties` already starts as true for this case, and every setState
+  // below happens after an await, never synchronously inside the effect.
   useEffect(() => {
-    if (!username) return;
-    const id = ++checkRef.current;
-    const t = setTimeout(async () => {
-      setUsernameStatus("checking");
-      const result = await checkUsernameAvailable(username);
-      if (checkRef.current !== id) return;
-      if (result.available) {
-        setUsernameStatus("ok");
-        setUsernameMessage("Available");
-      } else {
+    if (!onlyUniversityId) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const list = await fetchFaculties(onlyUniversityId);
+        if (!cancelled) setFaculties(list);
+      } catch {
+        if (!cancelled) {
+          setError("We couldn't load faculties. Check your connection and try again.");
+        }
+      } finally {
+        if (!cancelled) setLoadingFaculties(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [onlyUniversityId]);
+
+  // Debounced username availability check.
+  useEffect(() => {
+    if (username.length < USERNAME_MIN) return;
+    const req = ++usernameReq.current;
+    const timer = setTimeout(async () => {
+      try {
+        const result = await checkUsernameAvailable(username);
+        if (req !== usernameReq.current) return;
+        setUsernameStatus(result.available ? "ok" : "error");
+        setUsernameMessage(result.available ? "" : (result.reason ?? "That username isn't available."));
+      } catch {
+        if (req !== usernameReq.current) return;
         setUsernameStatus("error");
-        setUsernameMessage(result.reason ?? "Unavailable");
+        setUsernameMessage("We couldn't check that right now. Try again.");
       }
     }, 400);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [username]);
 
-  // Handlers reset dependent state instead of using effects.
   function handleUsernameChange(raw: string) {
     const next = raw.toLowerCase().replace(/[^a-z0-9_]/g, "");
+    usernameReq.current++; // drop any check still in flight
     setUsername(next);
-    if (!next) {
-      setUsernameStatus("idle");
-      setUsernameMessage("");
-    }
+    setUsernameMessage("");
+    setUsernameStatus(next.length >= USERNAME_MIN ? "checking" : "idle");
   }
 
   function handleUniversityChange(next: string) {
@@ -104,174 +252,185 @@ export function OnboardingForm({ universities }: Props) {
     setFaculties([]);
     setDepartmentId("");
     setDepartments([]);
-    if (!next) return;
-    setLoadingFaculties(true);
-    startTransition(async () => {
-      const list = await fetchFaculties(next);
-      setFaculties(list);
+    facultyReq.current++;
+    departmentReq.current++;
+    setLoadingDepartments(false);
+    setError("");
+    if (!next) {
       setLoadingFaculties(false);
-    });
+      return;
+    }
+    setLoadingFaculties(true);
+    void loadFaculties(next);
   }
 
   function handleFacultyChange(next: string) {
     setFacultyId(next);
     setDepartmentId("");
     setDepartments([]);
-    if (!next) return;
-    setLoadingDepartments(true);
-    startTransition(async () => {
-      const list = await fetchDepartments(next);
-      setDepartments(list);
-      setLoadingDepartments(false);
-    });
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+    departmentReq.current++;
     setError("");
-
-    if (usernameStatus === "error") {
-      setError("Fix your username before continuing");
+    if (!next) {
+      setLoadingDepartments(false);
       return;
     }
+    setLoadingDepartments(true);
+    void loadDepartments(next);
+  }
+
+  const busy = isPending || done;
+  const canSubmit =
+    username.length >= USERNAME_MIN &&
+    usernameStatus === "ok" &&
+    Boolean(universityId) &&
+    Boolean(facultyId) &&
+    !busy;
+
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!canSubmit) return;
+    setError("");
 
     startTransition(async () => {
-      const result = await completeOnboarding({
-        username,
-        universityId,
-        facultyId,
-        departmentId,
-      });
-      if (result.ok) {
-        router.push("/");
-        router.refresh();
-      } else {
-        setError(result.error);
+      try {
+        const result = await completeOnboarding({ username, universityId, facultyId, departmentId });
+        if (result.ok) {
+          setDone(true); // keep the button locked while we navigate
+          router.replace("/");
+          router.refresh();
+        } else {
+          setError(result.error);
+        }
+      } catch {
+        setError("Something went wrong. Check your connection and try again.");
       }
     });
   }
 
-  const canSubmit =
-    username.length > 0 &&
-    usernameStatus === "ok" &&
-    !!universityId &&
-    !!facultyId &&
-    !isPending;
+  /* progress: campus, faculty, username */
+  const steps = [Boolean(universityId), Boolean(facultyId), usernameStatus === "ok"];
+  const stepsDone = steps.filter(Boolean).length;
+
+  let hint = "3 to 20 characters. Letters, numbers and underscores.";
+  let hintTone = "text-ink-muted";
+  if (usernameStatus === "checking") hint = "Checking availability…";
+  if (usernameStatus === "ok") {
+    hint = `Available. Your shop link will be /@${username}`;
+    hintTone = "text-brand";
+  }
+  if (usernameStatus === "error") {
+    hint = usernameMessage;
+    hintTone = "text-danger";
+  }
+
+  const usernameBorder =
+    usernameStatus === "ok" ? "border-brand" : usernameStatus === "error" ? "border-danger" : "";
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+      {/* Progress */}
       <div>
-        <label htmlFor="username" className={LABEL}>
-          Pick a username
-        </label>
+        <div className="flex gap-1.5" aria-hidden="true">
+          {steps.map((isDone, i) => (
+            <span
+              key={i}
+              className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${isDone ? "bg-brand" : "bg-line"}`}
+            />
+          ))}
+        </div>
+        <p className="sr-only" aria-live="polite">
+          {stepsDone} of 3 steps complete
+        </p>
+      </div>
+
+      {/* Campus */}
+      {onlyUniversity ? (
+        <div>
+          <p className="mb-2 text-sm font-semibold text-ink">Your campus</p>
+          <div className="flex items-center gap-3 rounded-xl border border-brand/25 bg-brand-soft p-3.5">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand text-sm font-bold text-on-brand">
+              {onlyUniversity.shortName.slice(0, 2).toUpperCase()}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[15px] font-semibold text-ink">{onlyUniversity.name}</p>
+              <p className="text-sm text-ink-muted">Selected for you</p>
+            </div>
+            <CheckIcon />
+          </div>
+        </div>
+      ) : (
+        <SelectField
+          id="university"
+          label="University"
+          value={universityId}
+          onChange={handleUniversityChange}
+          placeholder="Select your university"
+          options={universities.map((u) => ({ id: u.id, name: `${u.name} (${u.shortName})` }))}
+        />
+      )}
+
+      {/* Faculty */}
+      {universityId && (
+        <SelectField
+          id="faculty"
+          label="Faculty"
+          value={facultyId}
+          onChange={handleFacultyChange}
+          placeholder="Select your faculty"
+          options={faculties}
+          loading={loadingFaculties}
+        />
+      )}
+
+      {/* Department */}
+      {facultyId && (
+        <SelectField
+          id="department"
+          label="Department"
+          optional
+          value={departmentId}
+          onChange={setDepartmentId}
+          placeholder="Skip for now"
+          options={departments}
+          loading={loadingDepartments}
+        />
+      )}
+
+      {/* Username */}
+      <Field id="username" label="Pick a username">
         <div className="relative">
-          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base font-medium text-ink-muted">
+          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base font-semibold text-ink-muted">
             @
           </span>
           <input
             id="username"
             type="text"
+            inputMode="text"
             value={username}
             onChange={(e) => handleUsernameChange(e.target.value)}
-            placeholder="john_doe"
+            placeholder="aisha_perfumes"
             autoCapitalize="none"
             autoCorrect="off"
+            autoComplete="off"
             spellCheck={false}
             maxLength={20}
-            className={`${FIELD} pl-9 pr-10`}
+            aria-describedby="username-hint"
+            aria-invalid={usernameStatus === "error"}
+            className={`${CONTROL} pl-9 pr-12 placeholder:text-ink-muted/60 ${usernameBorder}`}
           />
           <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
-            {usernameStatus === "checking" && <Spinner />}
-            {usernameStatus === "ok" && <Tick />}
+            {usernameStatus === "checking" && <SpinnerIcon />}
+            {usernameStatus === "ok" && <CheckIcon />}
+            {usernameStatus === "error" && <CrossIcon />}
           </span>
         </div>
-        <p
-          className={`mt-1.5 text-sm ${
-            usernameStatus === "ok"
-              ? "text-brand"
-              : usernameStatus === "error"
-                ? "text-danger"
-                : "text-ink-muted"
-          }`}
-        >
-          {usernameStatus === "checking"
-            ? "Checking…"
-            : usernameMessage || "Lowercase letters, numbers and underscores."}
+        <p id="username-hint" aria-live="polite" className={`mt-2 text-sm leading-snug ${hintTone}`}>
+          {hint}
         </p>
-      </div>
-
-      <div>
-        <label htmlFor="university" className={LABEL}>
-          University
-        </label>
-        <select
-          id="university"
-          value={universityId}
-          onChange={(e) => handleUniversityChange(e.target.value)}
-          className={FIELD}
-        >
-          <option value="">Select your university</option>
-          {universities.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.shortName} — {u.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {universityId && (
-        <div>
-          <label htmlFor="faculty" className={LABEL}>
-            Faculty
-          </label>
-          <select
-            id="faculty"
-            value={facultyId}
-            onChange={(e) => handleFacultyChange(e.target.value)}
-            disabled={loadingFaculties}
-            className={FIELD}
-          >
-            <option value="">
-              {loadingFaculties ? "Loading…" : "Select your faculty"}
-            </option>
-            {faculties.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {facultyId && (
-        <div>
-          <label htmlFor="department" className={LABEL}>
-            Department <span className="font-normal text-ink-muted">(optional)</span>
-          </label>
-          <select
-            id="department"
-            value={departmentId}
-            onChange={(e) => setDepartmentId(e.target.value)}
-            disabled={loadingDepartments}
-            className={FIELD}
-          >
-            <option value="">
-              {loadingDepartments ? "Loading…" : "Skip for now"}
-            </option>
-            {departments.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      </Field>
 
       {error && (
-        <div
-          role="alert"
-          className="flex items-start gap-2.5 rounded-xl bg-danger-soft p-3.5 text-sm text-danger"
-        >
+        <div role="alert" className="flex items-start gap-2.5 rounded-xl bg-danger-soft p-3.5 text-sm text-danger">
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true" className="mt-px shrink-0">
             <circle cx="9" cy="9" r="8" stroke="currentColor" strokeWidth="1.6" />
             <path d="M9 5v4.5M9 12.2v.1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
@@ -283,17 +442,11 @@ export function OnboardingForm({ universities }: Props) {
       <button
         type="submit"
         disabled={!canSubmit}
-        aria-busy={isPending}
-        className="mt-2 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-accent text-base font-bold text-on-accent shadow-card transition hover:brightness-[1.03] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+        aria-busy={busy}
+        className="flex h-14 w-full items-center justify-center gap-2.5 rounded-2xl bg-accent text-base font-bold text-on-accent shadow-card transition hover:brightness-[1.03] active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-sand disabled:text-ink-muted disabled:shadow-none"
       >
-        {isPending ? (
-          <>
-            <Spinner />
-            Saving…
-          </>
-        ) : (
-          "Continue"
-        )}
+        {busy && <SpinnerIcon />}
+        {busy ? "Setting up your profile…" : "Continue"}
       </button>
     </form>
   );
