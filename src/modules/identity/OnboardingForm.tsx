@@ -69,12 +69,9 @@ export function OnboardingForm({ universities }: Props) {
 
   const [error, setError] = useState("");
 
+  // Username check: debounced, cancelled on stale results.
   useEffect(() => {
-    if (!username) {
-      setUsernameStatus("idle");
-      setUsernameMessage("");
-      return;
-    }
+    if (!username) return;
     const id = ++checkRef.current;
     const t = setTimeout(async () => {
       setUsernameStatus("checking");
@@ -91,35 +88,43 @@ export function OnboardingForm({ universities }: Props) {
     return () => clearTimeout(t);
   }, [username]);
 
-  useEffect(() => {
-    if (!universityId) {
-      setFaculties([]);
-      setFacultyId("");
-      return;
+  // Handlers reset dependent state instead of using effects.
+  function handleUsernameChange(raw: string) {
+    const next = raw.toLowerCase().replace(/[^a-z0-9_]/g, "");
+    setUsername(next);
+    if (!next) {
+      setUsernameStatus("idle");
+      setUsernameMessage("");
     }
+  }
+
+  function handleUniversityChange(next: string) {
+    setUniversityId(next);
+    setFacultyId("");
+    setFaculties([]);
+    setDepartmentId("");
+    setDepartments([]);
+    if (!next) return;
     setLoadingFaculties(true);
     startTransition(async () => {
-      const list = await fetchFaculties(universityId);
+      const list = await fetchFaculties(next);
       setFaculties(list);
-      setFacultyId("");
       setLoadingFaculties(false);
     });
-  }, [universityId]);
+  }
 
-  useEffect(() => {
-    if (!facultyId) {
-      setDepartments([]);
-      setDepartmentId("");
-      return;
-    }
+  function handleFacultyChange(next: string) {
+    setFacultyId(next);
+    setDepartmentId("");
+    setDepartments([]);
+    if (!next) return;
     setLoadingDepartments(true);
     startTransition(async () => {
-      const list = await fetchDepartments(facultyId);
+      const list = await fetchDepartments(next);
       setDepartments(list);
-      setDepartmentId("");
       setLoadingDepartments(false);
     });
-  }, [facultyId]);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -155,7 +160,6 @@ export function OnboardingForm({ universities }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Username */}
       <div>
         <label htmlFor="username" className={LABEL}>
           Pick a username
@@ -168,9 +172,7 @@ export function OnboardingForm({ universities }: Props) {
             id="username"
             type="text"
             value={username}
-            onChange={(e) =>
-              setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))
-            }
+            onChange={(e) => handleUsernameChange(e.target.value)}
             placeholder="john_doe"
             autoCapitalize="none"
             autoCorrect="off"
@@ -198,7 +200,6 @@ export function OnboardingForm({ universities }: Props) {
         </p>
       </div>
 
-      {/* University */}
       <div>
         <label htmlFor="university" className={LABEL}>
           University
@@ -206,7 +207,7 @@ export function OnboardingForm({ universities }: Props) {
         <select
           id="university"
           value={universityId}
-          onChange={(e) => setUniversityId(e.target.value)}
+          onChange={(e) => handleUniversityChange(e.target.value)}
           className={FIELD}
         >
           <option value="">Select your university</option>
@@ -218,7 +219,6 @@ export function OnboardingForm({ universities }: Props) {
         </select>
       </div>
 
-      {/* Faculty */}
       {universityId && (
         <div>
           <label htmlFor="faculty" className={LABEL}>
@@ -227,7 +227,7 @@ export function OnboardingForm({ universities }: Props) {
           <select
             id="faculty"
             value={facultyId}
-            onChange={(e) => setFacultyId(e.target.value)}
+            onChange={(e) => handleFacultyChange(e.target.value)}
             disabled={loadingFaculties}
             className={FIELD}
           >
@@ -243,12 +243,10 @@ export function OnboardingForm({ universities }: Props) {
         </div>
       )}
 
-      {/* Department */}
       {facultyId && (
         <div>
           <label htmlFor="department" className={LABEL}>
-            Department{" "}
-            <span className="font-normal text-ink-muted">(optional)</span>
+            Department <span className="font-normal text-ink-muted">(optional)</span>
           </label>
           <select
             id="department"

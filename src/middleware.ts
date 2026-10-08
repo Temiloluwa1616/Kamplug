@@ -3,7 +3,6 @@ import { getSessionCookie } from "better-auth/cookies";
 
 const PROTECTED_PREFIXES = ["/sell", "/my-listings", "/saved", "/admin"];
 const AUTH_PAGES = ["/auth"];
-const ONBOARDING_PATH = "/onboarding";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
