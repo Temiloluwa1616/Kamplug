@@ -131,3 +131,50 @@ export async function clearDraft(): Promise<void> {
   const user = await requireOnboarded();
   await db.delete(listingDrafts).where(eq(listingDrafts.userId, user.id));
 }
+
+
+export type StatusActionResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
+async function updateListingStatus(
+  listingId: string,
+  newStatus: "active" | "sold" | "removed"
+): Promise<StatusActionResult> {
+  const user = await requireOnboarded();
+
+  const [listing] = await db
+    .select({ sellerId: listings.sellerId })
+    .from(listings)
+    .where(eq(listings.id, listingId))
+    .limit(1);
+
+  if (!listing) return { ok: false, error: "Listing not found" };
+  if (listing.sellerId !== user.id) {
+    return { ok: false, error: "You can only manage your own listings" };
+  }
+
+  await db
+    .update(listings)
+    .set({ status: newStatus, updatedAt: new Date() })
+    .where(eq(listings.id, listingId));
+
+  revalidatePath("/");
+  revalidatePath("/profile/listings");
+  revalidatePath(`/listing/${listingId}`);
+  if (user.username) revalidatePath(`/@${user.username}`);
+
+  return { ok: true };
+}
+
+export async function markAsSold(listingId: string) {
+  return updateListingStatus(listingId, "sold");
+}
+
+export async function relist(listingId: string) {
+  return updateListingStatus(listingId, "active");
+}
+
+export async function removeListing(listingId: string) {
+  return updateListingStatus(listingId, "removed");
+}

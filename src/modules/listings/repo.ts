@@ -273,3 +273,54 @@ export async function getSellerListings(
     coverUrl: coverByListing.get(r.id) ?? null,
   }));
 }
+
+export type MyListing = {
+  id: string;
+  title: string;
+  priceKobo: number | null;
+  type: string;
+  status: string;
+  createdAt: Date;
+  coverUrl: string | null;
+};
+
+export async function getMyListings(
+  userId: string,
+  status: "active" | "sold" | "removed"
+): Promise<MyListing[]> {
+  const rows = await db
+    .select({
+      id: listings.id,
+      title: listings.title,
+      priceKobo: listings.priceKobo,
+      type: listings.type,
+      status: listings.status,
+      createdAt: listings.createdAt,
+    })
+    .from(listings)
+    .where(and(eq(listings.sellerId, userId), eq(listings.status, status)))
+    .orderBy(desc(listings.createdAt));
+
+  if (rows.length === 0) return [];
+
+  const ids = rows.map((r) => r.id);
+  const covers = await db
+    .select({
+      listingId: listingImages.listingId,
+      url: listingImages.url,
+    })
+    .from(listingImages)
+    .where(
+      and(
+        inArray(listingImages.listingId, ids),
+        eq(listingImages.sortOrder, 0)
+      )
+    );
+
+  const coverByListing = new Map(covers.map((c) => [c.listingId, c.url]));
+
+  return rows.map((r) => ({
+    ...r,
+    coverUrl: coverByListing.get(r.id) ?? null,
+  }));
+}
