@@ -113,3 +113,71 @@ export async function getFeed(
     coverUrl: coverByListing.get(r.id) ?? null,
   }));
 }
+
+export type ListingDetail = {
+  id: string;
+  title: string;
+  description: string | null;
+  priceKobo: number | null;
+  type: string;
+  condition: string | null;
+  status: string;
+  contactPhone: string;
+  createdAt: Date;
+  categoryName: string;
+  categorySlug: string;
+  pickupLocationName: string | null;
+  sellerId: string;
+  sellerUsername: string | null;
+  sellerDisplayName: string;
+  sellerAvatarUrl: string | null;
+  sellerIsVerified: boolean;
+  sellerBio: string | null;
+  images: string[];
+};
+
+
+export async function getListingDetail(
+  listingId: string
+): Promise<ListingDetail | null> {
+  const [row] = await db
+    .select({
+      id: listings.id,
+      title: listings.title,
+      description: listings.description,
+      priceKobo: listings.priceKobo,
+      type: listings.type,
+      condition: listings.condition,
+      status: listings.status,
+      contactPhone: listings.contactPhone,
+      createdAt: listings.createdAt,
+      categoryName: categories.name,
+      categorySlug: categories.slug,
+      pickupLocationName: pickupLocations.name,
+      sellerId: users.id,
+      sellerUsername: users.username,
+      sellerDisplayName: users.displayName,
+      sellerAvatarUrl: users.avatarUrl,
+      sellerIsVerified: users.isVerified,
+      sellerBio: users.bio,
+    })
+    .from(listings)
+    .innerJoin(categories, eq(listings.categoryId, categories.id))
+    .innerJoin(users, eq(listings.sellerId, users.id))
+    .leftJoin(pickupLocations, eq(listings.pickupLocationId, pickupLocations.id))
+    .where(eq(listings.id, listingId))
+    .limit(1);
+
+  if (!row) return null;
+
+  const imageRows = await db
+    .select({ url: listingImages.url })
+    .from(listingImages)
+    .where(eq(listingImages.listingId, listingId))
+    .orderBy(asc(listingImages.sortOrder));
+
+  return {
+    ...row,
+    images: imageRows.map((i) => i.url),
+  };
+}
