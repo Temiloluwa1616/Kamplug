@@ -3,8 +3,9 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { users, reservedUsernames } from "@/lib/db/schema";
-import { onboardingSchema } from "./validation";
+import { onboardingSchema, profileSchema } from "./validation";
 import { requireAuth } from "./session";
+import { normalizeNigerianPhone } from "@/lib/phone";
 
 export type OnboardingResult =
   | { ok: true }
@@ -111,4 +112,44 @@ export async function fetchFaculties(universityId: string) {
 export async function fetchDepartments(facultyId: string) {
   const { listDepartments } = await import("./repo");
   return listDepartments(facultyId);
+}
+
+
+
+export type ProfileResult =
+  | { ok: true }
+  | { ok: false; error: string; field?: string };
+
+export async function updateProfile(input: unknown): Promise<ProfileResult> {
+  const session = await requireAuth();
+
+  const parsed = profileSchema.safeParse(input);
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    return {
+      ok: false,
+      error: first.message,
+      field: first.path[0]?.toString(),
+    };
+  }
+
+  const { displayName, bio, phone } = parsed.data;
+
+  const phoneE164 = phone && phone.length > 0 ? normalizeNigerianPhone(phone) : null;
+
+  await db
+    .update(users)
+    .set({
+      displayName,
+      bio: bio && bio.length > 0 ? bio : null,
+      phone: phoneE164,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, session.user.id));
+
+  revalidatePath("/profile");
+  revalidatePath("/");
+  revalidatePath(`/profile/listings`);
+
+  return { ok: true };
 }

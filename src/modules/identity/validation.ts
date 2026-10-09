@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeNigerianPhone } from "@/lib/phone";
 
 export const usernameSchema = z
   .string()
@@ -20,3 +21,29 @@ export const onboardingSchema = z.object({
 });
 
 export type OnboardingInput = z.infer<typeof onboardingSchema>;
+
+
+export const profileSchema = z.object({
+  displayName: z
+    .string()
+    .trim()
+    .min(2, "Name must be at least 2 characters")
+    .max(60, "Name is too long"),
+  bio: z
+    .string()
+    .trim()
+    .max(300, "Bio is too long")
+    .optional()
+    .or(z.literal("")),
+  phone: z
+    .string()
+    .trim()
+    .refine(
+      (v) => v === "" || normalizeNigerianPhone(v) !== null,
+      "Enter a valid Nigerian phone number"
+    )
+    .optional()
+    .or(z.literal("")),
+});
+
+export type ProfileInput = z.infer<typeof profileSchema>;
