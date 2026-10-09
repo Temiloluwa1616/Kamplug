@@ -1,10 +1,12 @@
-import { asc, desc, eq, and, inArray } from "drizzle-orm";
+import { asc, desc, eq, and, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   categories,
+  faculties,
   listings,
   listingImages,
   pickupLocations,
+  universities,
   users,
 } from "@/lib/db/schema";
 
@@ -180,4 +182,94 @@ export async function getListingDetail(
     ...row,
     images: imageRows.map((i) => i.url),
   };
+}
+
+export type StorefrontUser = {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  bio: string | null;
+  isVerified: boolean;
+  facultyName: string | null;
+  universityShortName: string;
+  activeListingCount: number;
+};
+
+export async function getStorefront(
+  username: string
+): Promise<StorefrontUser | null> {
+  const [row] = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      displayName: users.displayName,
+      avatarUrl: users.avatarUrl,
+      bio: users.bio,
+      isVerified: users.isVerified,
+      facultyName: faculties.name,
+      universityShortName: universities.shortName,
+    })
+    .from(users)
+    .innerJoin(universities, eq(users.universityId, universities.id))
+    .leftJoin(faculties, eq(users.facultyId, faculties.id))
+    .where(eq(users.username, username))
+    .limit(1);
+
+  if (!row || !row.username) return null;
+
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(listings)
+    .where(and(eq(listings.sellerId, row.id), eq(listings.status, "active")));
+
+  return {
+    ...row,
+    username: row.username,
+    activeListingCount: count,
+  };
+}
+
+export async function getSellerListings(
+  sellerId: string
+): Promise<FeedListing[]> {
+  const rows = await db
+    .select({
+      id: listings.id,
+      title: listings.title,
+      priceKobo: listings.priceKobo,
+      type: listings.type,
+      condition: listings.condition,
+      sellerUsername: users.username,
+      sellerDisplayName: users.displayName,
+      sellerAvatarUrl: users.avatarUrl,
+      sellerIsVerified: users.isVerified,
+    })
+    .from(listings)
+    .innerJoin(users, eq(listings.sellerId, users.id))
+    .where(and(eq(listings.sellerId, sellerId), eq(listings.status, "active")))
+    .orderBy(desc(listings.createdAt));
+
+  if (rows.length === 0) return [];
+
+  const ids = rows.map((r) => r.id);
+  const covers = await db
+    .select({
+      listingId: listingImages.listingId,
+      url: listingImages.url,
+    })
+    .from(listingImages)
+    .where(
+      and(
+        inArray(listingImages.listingId, ids),
+        eq(listingImages.sortOrder, 0)
+      )
+    );
+
+  const coverByListing = new Map(covers.map((c) => [c.listingId, c.url]));
+
+  return rows.map((r) => ({
+    ...r,
+    coverUrl: coverByListing.get(r.id) ?? null,
+  }));
 }
