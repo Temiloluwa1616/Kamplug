@@ -201,3 +201,90 @@ export const verifications = pgTable(
   },
   (t) => [index("verifications_identifier_idx").on(t.identifier)]
 );
+
+
+
+
+
+// ============================================
+// LISTINGS
+// ============================================
+
+export const listings = pgTable(
+  "listings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    universityId: uuid("university_id")
+      .notNull()
+      .references(() => universities.id, { onDelete: "cascade" }),
+    sellerId: uuid("seller_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => categories.id),
+    pickupLocationId: uuid("pickup_location_id").references(
+      () => pickupLocations.id,
+      { onDelete: "set null" }
+    ),
+
+    // sell | swap | rent | free | service
+    type: text("type").notNull().default("sell"),
+
+    title: text("title").notNull(),
+    description: text("description"),
+    priceKobo: integer("price_kobo"),
+    condition: text("condition"), // new | like_new | used | for_parts
+
+    // Contact: snapshot at publish time so edits to the user profile
+    // don't rewrite history on old listings
+    contactPhone: text("contact_phone").notNull(),
+
+    // Lifecycle
+    status: text("status").notNull().default("active"), // active | sold | removed
+
+    // Phase 2 fields (unused at MVP but wired now so we don't migrate later)
+    embedding: text("embedding"), // pgvector stored as text for now
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("listings_university_status_idx").on(t.universityId, t.status, t.createdAt),
+    index("listings_seller_idx").on(t.sellerId),
+    index("listings_category_idx").on(t.categoryId),
+  ]
+);
+
+export const listingImages = pgTable(
+  "listing_images",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    listingId: uuid("listing_id")
+      .notNull()
+      .references(() => listings.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("listing_images_listing_idx").on(t.listingId, t.sortOrder)]
+);
+
+export const listingDrafts = pgTable(
+  "listing_drafts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" })
+      .unique(),
+    payload: text("payload").notNull(), // JSON string of the form state
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  }
+);
