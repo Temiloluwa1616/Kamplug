@@ -12,10 +12,11 @@ const STATUS_LABEL: Record<string, string> = {
   removed: "Removed",
 };
 
-const STATUS_STYLE: Record<string, string> = {
-  active: "bg-brand-soft text-brand",
-  sold: "bg-accent-soft text-accent",
-  removed: "bg-sand text-ink-muted",
+// Status is a dot plus a word, never colour alone.
+const STATUS_DOT: Record<string, string> = {
+  active: "bg-brand",
+  sold: "bg-accent",
+  removed: "bg-ink-muted",
 };
 
 function formatPrice(priceKobo: number | null, type: string): string {
@@ -37,6 +38,10 @@ function Spinner() {
   );
 }
 
+const BTN =
+  "inline-flex h-10 items-center gap-1.5 rounded-full px-4 text-[13px] font-semibold transition active:scale-[0.98] disabled:opacity-60";
+const BTN_OUTLINE = `${BTN} border border-line bg-surface text-ink hover:border-ink-muted/50`;
+
 export function MyListingRow({ listing }: { listing: MyListing }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -50,115 +55,120 @@ export function MyListingRow({ listing }: { listing: MyListing }) {
   }
 
   return (
-    <li className="flex gap-3 rounded-2xl border border-line bg-surface p-3 shadow-card sm:gap-4 sm:p-4">
-      <Link
-        href={`/listing/${listing.id}`}
-        className="relative size-20 shrink-0 overflow-hidden rounded-xl bg-sand sm:size-24"
-      >
-        {listing.coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={listing.coverUrl} alt="" className="size-full object-cover" />
-        ) : (
-          <div className="flex size-full items-center justify-center text-xs text-ink-muted">
-            No photo
-          </div>
-        )}
-      </Link>
+    <li className="p-4">
+      <div className="flex gap-3.5">
+        <Link
+          href={`/listing/${listing.id}`}
+          className="relative size-[5.5rem] shrink-0 overflow-hidden rounded-xl bg-sand sm:size-24"
+        >
+          {listing.coverUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={listing.coverUrl}
+              alt=""
+              className={`size-full object-cover ${listing.status === "active" ? "" : "opacity-60 saturate-50"}`}
+            />
+          ) : (
+            <div className="flex size-full items-center justify-center bg-brand-soft px-1 text-center text-xs font-medium text-ink-muted">
+              No photo
+            </div>
+          )}
+        </Link>
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
           <Link
             href={`/listing/${listing.id}`}
-            className="line-clamp-2 text-sm font-semibold leading-snug text-ink hover:underline"
+            className="line-clamp-2 text-[15px] font-semibold leading-snug text-ink hover:underline"
           >
             {listing.title}
           </Link>
-          <span
-            className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${STATUS_STYLE[listing.status]}`}
-          >
-            {STATUS_LABEL[listing.status]}
-          </span>
+
+          <div className="mt-1.5 flex items-center justify-between gap-3">
+            <p className="text-base font-extrabold tabular-nums text-ink">
+              {formatPrice(listing.priceKobo, listing.type)}
+            </p>
+            <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-ink">
+              <span aria-hidden="true" className={`size-2 rounded-full ${STATUS_DOT[listing.status]}`} />
+              {STATUS_LABEL[listing.status]}
+            </span>
+          </div>
         </div>
+      </div>
 
-        <p className="mt-1 text-sm font-bold tabular-nums text-ink">
-          {formatPrice(listing.priceKobo, listing.type)}
-        </p>
+      {/* Actions get the full row so nothing wraps awkwardly */}
+      <div className="mt-3.5 flex flex-wrap items-center gap-2">
+        {confirmingDelete ? (
+          <>
+            <p className="mr-auto text-[13px] font-semibold text-ink">Delete this listing?</p>
+            <button type="button" onClick={() => setConfirmingDelete(false)} className={BTN_OUTLINE}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => run(() => removeListing(listing.id))}
+              disabled={isPending}
+              className={`${BTN} bg-danger font-bold text-white`}
+            >
+              {isPending ? <Spinner /> : null}
+              Confirm
+            </button>
+          </>
+        ) : (
+          <>
+            {listing.status === "active" && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => run(() => markAsSold(listing.id))}
+                  disabled={isPending}
+                  className={BTN_OUTLINE}
+                >
+                  {isPending ? <Spinner /> : null}
+                  Mark as sold
+                </button>
+                <button
+                  type="button"
+                  disabled
+                  className={`${BTN} border border-dashed border-line text-ink-muted`}
+                >
+                  Edit (soon)
+                </button>
+              </>
+            )}
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {listing.status === "active" && (
-            <>
+            {listing.status === "sold" && (
               <button
                 type="button"
-                onClick={() => run(() => markAsSold(listing.id))}
+                onClick={() => run(() => relist(listing.id))}
                 disabled={isPending}
-                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-xs font-semibold text-ink transition hover:border-ink-muted/50 active:scale-[0.98] disabled:opacity-60"
+                className={`${BTN} bg-accent font-bold text-on-accent hover:brightness-[1.03]`}
               >
                 {isPending ? <Spinner /> : null}
-                Mark as sold
+                Relist
               </button>
+            )}
+
+            {listing.status === "removed" && (
               <button
                 type="button"
-                disabled
-                className="inline-flex h-9 items-center rounded-full border border-line bg-surface px-3.5 text-xs font-semibold text-ink-muted"
+                onClick={() => run(() => relist(listing.id))}
+                disabled={isPending}
+                className={BTN_OUTLINE}
               >
-                Edit (soon)
+                {isPending ? <Spinner /> : null}
+                Restore
               </button>
-            </>
-          )}
+            )}
 
-          {listing.status === "sold" && (
-            <button
-              type="button"
-              onClick={() => run(() => relist(listing.id))}
-              disabled={isPending}
-              className="inline-flex h-9 items-center gap-1.5 rounded-full bg-accent px-3.5 text-xs font-bold text-on-accent transition hover:brightness-[1.03] active:scale-[0.98] disabled:opacity-60"
-            >
-              {isPending ? <Spinner /> : null}
-              Relist
-            </button>
-          )}
-
-          {listing.status === "removed" && (
-            <button
-              type="button"
-              onClick={() => run(() => relist(listing.id))}
-              disabled={isPending}
-              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-xs font-semibold text-ink transition hover:border-ink-muted/50 active:scale-[0.98] disabled:opacity-60"
-            >
-              {isPending ? <Spinner /> : null}
-              Restore
-            </button>
-          )}
-
-          {!confirmingDelete ? (
             <button
               type="button"
               onClick={() => setConfirmingDelete(true)}
-              className="inline-flex h-9 items-center rounded-full px-3.5 text-xs font-semibold text-danger transition hover:bg-danger-soft active:scale-[0.98]"
+              className={`${BTN} ml-auto text-danger hover:bg-danger-soft`}
             >
               Delete
             </button>
-          ) : (
-            <span className="inline-flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => run(() => removeListing(listing.id))}
-                disabled={isPending}
-                className="inline-flex h-9 items-center gap-1.5 rounded-full bg-danger px-3.5 text-xs font-bold text-white transition active:scale-[0.98] disabled:opacity-60"
-              >
-                {isPending ? <Spinner /> : null}
-                Confirm
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmingDelete(false)}
-                className="text-xs font-medium text-ink-muted hover:text-ink"
-              >
-                Cancel
-              </button>
-            </span>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </li>
   );

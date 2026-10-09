@@ -57,6 +57,47 @@
   }
 }
 
+/*
+ * Dark mode.
+ * System preference only. Every colour pair has been checked for WCAG AA
+ * (4.5:1 for text, 3:1 for UI elements) against its background.
+ * Light mode stays the launch default; dark follows the OS setting.
+ */
+@media (prefers-color-scheme: dark) {
+  @theme {
+    /* Surfaces */
+    --color-canvas: #0d0f14;
+    --color-surface: #16191f;
+    --color-sand: #1e2229;
+    --color-line: #2a2f38;
+
+    /* Text */
+    --color-ink: #f4f5f7;
+    --color-ink-muted: #9ba1b0;
+
+    /* Brand — brighter green for dark backgrounds, dark text on it */
+    --color-brand: #2ab584;
+    --color-brand-deep: #1a8c63;
+    --color-brand-soft: #143a2e;
+    --color-on-brand: #0d0f14;
+
+    /* Accent — amber is unchanged; deep tint for soft backgrounds */
+    --color-accent: #f5a524;
+    --color-accent-soft: #3a2a10;
+    --color-on-accent: #1a1203;
+
+    /* Status — brighter blues and reds for dark surfaces */
+    --color-verified: #4d97ff;
+    --color-verified-soft: #152846;
+    --color-danger: #ff6b5e;
+    --color-danger-soft: #3a1a18;
+
+    /* Shadows need more punch; light shadows vanish on dark backgrounds */
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 28px -14px rgb(0 0 0 / 0.6);
+    --shadow-pop: 0 2px 4px rgb(0 0 0 / 0.5), 0 18px 40px -16px rgb(0 0 0 / 0.7);
+  }
+}
+
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;

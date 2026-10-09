@@ -18,6 +18,37 @@ type SlotState = {
 
 const SLOTS = [0, 1, 2] as const;
 
+function CameraIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.1a1 1 0 0 0 .8-.4l.9-1.2a1 1 0 0 1 .8-.4h3.8a1 1 0 0 1 .8.4l.9 1.2a1 1 0 0 0 .8.4h1.1A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-8z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12.5" r="3.2" stroke="currentColor" strokeWidth="1.7" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 6v12M6 12h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function Spinner() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" className="animate-spin">
+      <circle cx="10" cy="10" r="8" stroke="rgba(255,255,255,0.3)" strokeWidth="2.5" />
+      <path d="M18 10a8 8 0 0 0-8-8" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function ImagePicker({
   value,
   onChange,
@@ -115,19 +146,28 @@ export function ImagePicker({
     e.target.value = "";
   }
 
+  const filledCount = slots.filter((s) => s.status !== "empty").length;
+
   return (
     <div>
-      <div className="mb-2 flex items-baseline justify-between">
+      <div className="mb-3 flex items-baseline justify-between">
         <span className="text-sm font-semibold text-ink">Photos</span>
-        <span className="text-xs font-medium text-ink-muted">Up to 3</span>
+        <span className="text-xs font-medium tabular-nums text-ink-muted">
+          {filledCount} of {SLOTS.length}
+        </span>
       </div>
 
+      {/* One big cover slot, two small ones stacked beside it */}
       <div className="grid grid-cols-3 gap-3">
         {SLOTS.map((slotIndex) => {
           const slot = slots[slotIndex];
           const isFilled = slot.status !== "empty";
+          const isCover = slotIndex === 0;
           return (
-            <div key={slotIndex} className="relative aspect-square">
+            <div
+              key={slotIndex}
+              className={isCover ? "relative col-span-2 row-span-2" : "relative aspect-square"}
+            >
               <input
                 ref={(el) => {
                   inputRefs.current[slotIndex] = el;
@@ -142,51 +182,58 @@ export function ImagePicker({
                 <button
                   type="button"
                   onClick={() => inputRefs.current[slotIndex]?.click()}
-                  className="flex size-full flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-line bg-surface transition hover:border-brand/40 active:scale-[0.98]"
+                  aria-label={isCover ? "Add cover photo" : `Add photo ${slotIndex + 1}`}
+                  className={`absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-4 text-center transition active:scale-[0.99] ${
+                    isCover
+                      ? "border-brand/35 bg-brand-soft/60 hover:border-brand/60"
+                      : "border-line bg-surface text-ink-muted hover:border-brand/40"
+                  }`}
                 >
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path
-                      d="M12 6v12M6 12h12"
-                      stroke="var(--color-ink-muted)"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <span className="text-xs font-medium text-ink-muted">
-                    {slotIndex === 0 ? "Cover" : "Add"}
-                  </span>
+                  {isCover ? (
+                    <>
+                      <span className="flex size-12 items-center justify-center rounded-full bg-brand text-on-brand">
+                        <CameraIcon />
+                      </span>
+                      <span className="text-sm font-bold text-ink">Add cover photo</span>
+                      <span className="text-xs leading-snug text-ink-muted">
+                        Take one or choose from your gallery
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <PlusIcon />
+                      <span className="text-xs font-medium">Add</span>
+                    </>
+                  )}
                 </button>
               ) : (
-                <div className="relative size-full overflow-hidden rounded-2xl bg-sand">
+                <div className="absolute inset-0 overflow-hidden rounded-2xl bg-sand">
                   {/* Local preview: shows instantly, before upload finishes. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={slot.previewUrl}
-                    alt=""
+                    alt={isCover ? "Cover photo preview" : `Photo ${slotIndex + 1} preview`}
                     className="size-full object-cover"
                   />
 
                   {(slot.status === "compressing" || slot.status === "uploading") && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-ink/60 backdrop-blur-sm">
-                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" className="animate-spin">
-                        <circle cx="10" cy="10" r="8" stroke="rgba(255,255,255,0.3)" strokeWidth="2.5" />
-                        <path d="M18 10a8 8 0 0 0-8-8" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" />
-                      </svg>
-                      <span className="text-[11px] font-medium text-white">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-ink/60">
+                      <Spinner />
+                      <span className="text-xs font-semibold text-white">
                         {slot.status === "compressing" ? "Compressing…" : "Uploading…"}
                       </span>
                     </div>
                   )}
 
                   {slot.status === "error" && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-danger/70 p-2 text-center">
-                      <span className="text-[11px] font-medium leading-tight text-white">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-ink/80 p-2 text-center">
+                      <span className="text-xs font-medium leading-tight text-white">
                         {slot.error ?? "Failed"}
                       </span>
                       <button
                         type="button"
                         onClick={() => inputRefs.current[slotIndex]?.click()}
-                        className="rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold text-ink"
+                        className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-ink active:scale-95"
                       >
                         Retry
                       </button>
@@ -198,7 +245,7 @@ export function ImagePicker({
                       type="button"
                       onClick={() => handleRemove(slotIndex)}
                       aria-label="Remove image"
-                      className="absolute right-1.5 top-1.5 flex size-7 items-center justify-center rounded-full bg-ink/75 text-white backdrop-blur-sm transition active:scale-90"
+                      className="absolute right-2 top-2 flex size-8 items-center justify-center rounded-full bg-ink/75 text-white transition active:scale-90"
                     >
                       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
                         <path
@@ -211,8 +258,8 @@ export function ImagePicker({
                     </button>
                   )}
 
-                  {slotIndex === 0 && slot.status === "done" && (
-                    <span className="absolute bottom-1.5 left-1.5 rounded-full bg-ink/75 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur-sm">
+                  {isCover && slot.status === "done" && (
+                    <span className="absolute bottom-2 left-2 rounded-full bg-ink/75 px-2.5 py-1 text-xs font-semibold text-white">
                       Cover
                     </span>
                   )}
@@ -223,7 +270,7 @@ export function ImagePicker({
         })}
       </div>
 
-      <p className="mt-2.5 text-xs leading-relaxed text-ink-muted">
+      <p className="mt-3 text-xs leading-relaxed text-ink-muted">
         First photo is your cover. Good light and a plain background sell faster.
       </p>
     </div>

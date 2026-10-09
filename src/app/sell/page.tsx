@@ -19,15 +19,15 @@ export default async function SellPage() {
   ]);
 
   return (
-    <main className="mx-auto max-w-3xl px-4 pt-6 sm:px-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink">
+    <main className="mx-auto max-w-2xl px-4 pb-28 pt-6 sm:px-6 sm:pt-10">
+      <header className="mb-7">
+        <h1 className="text-[1.75rem] font-extrabold leading-tight tracking-tight text-ink sm:text-3xl">
           Sell an item
         </h1>
-        <p className="mt-1 text-sm text-ink-muted">
+        <p className="mt-1.5 text-base leading-relaxed text-ink-muted">
           Takes under a minute. Buyers see it instantly.
         </p>
-      </div>
+      </header>
 
       <SellForm
         categories={categories.map((c) => ({ id: c.id, name: c.name }))}

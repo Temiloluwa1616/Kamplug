@@ -1,4 +1,4 @@
-import { asc, desc, eq, and, inArray, sql } from "drizzle-orm";
+import { asc, desc, eq, and, inArray, ilike, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   categories,
@@ -48,9 +48,10 @@ export type FeedListing = {
 
 export async function getFeed(
   universityId: string,
-  categorySlug?: string
+  categorySlug?: string,
+  query?: string
 ): Promise<FeedListing[]> {
-  // If a category filter is set, resolve the slug to an id first.
+  // Resolve category slug to id if provided.
   let categoryId: string | undefined;
   if (categorySlug) {
     const [cat] = await db
@@ -58,20 +59,25 @@ export async function getFeed(
       .from(categories)
       .where(eq(categories.slug, categorySlug))
       .limit(1);
-    if (!cat) return []; // unknown slug: no results
+    if (!cat) return [];
     categoryId = cat.id;
   }
 
-  const where = categoryId
-    ? and(
-        eq(listings.universityId, universityId),
-        eq(listings.status, "active"),
-        eq(listings.categoryId, categoryId)
-      )
-    : and(
-        eq(listings.universityId, universityId),
-        eq(listings.status, "active")
-      );
+  const trimmed = query?.trim();
+  const conditions = [
+    eq(listings.universityId, universityId),
+    eq(listings.status, "active"),
+  ];
+  if (categoryId) conditions.push(eq(listings.categoryId, categoryId));
+  if (trimmed) {
+    const pattern = `%${trimmed}%`;
+    conditions.push(
+      or(
+        ilike(listings.title, pattern),
+        ilike(listings.description, pattern)
+      )!
+    );
+  }
 
   const rows = await db
     .select({
@@ -87,13 +93,12 @@ export async function getFeed(
     })
     .from(listings)
     .innerJoin(users, eq(listings.sellerId, users.id))
-    .where(where)
+    .where(and(...conditions))
     .orderBy(desc(listings.createdAt))
     .limit(60);
 
   if (rows.length === 0) return [];
 
-  // Fetch the cover image (sortOrder 0) for each listing in one query.
   const ids = rows.map((r) => r.id);
   const covers = await db
     .select({
