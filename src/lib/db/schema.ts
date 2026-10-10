@@ -288,3 +288,26 @@ export const listingDrafts = pgTable(
       .$onUpdate(() => new Date()),
   }
 );
+
+
+// ============================================
+// SAVES
+// ============================================
+
+export const saves = pgTable(
+  "saves",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    listingId: uuid("listing_id")
+      .notNull()
+      .references(() => listings.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("saves_user_listing_idx").on(t.userId, t.listingId),
+    index("saves_user_idx").on(t.userId),
+  ]
+);

@@ -4,6 +4,8 @@ import { getCurrentUser } from "@/modules/identity/session";
 import { getListingDetail } from "@/modules/listings/repo";
 import { ImageCarousel } from "@/modules/listings/ImageCarousel";
 import { WhatsAppButton } from "@/modules/listings/WhatsAppButton";
+import { SaveButton } from "@/modules/listings/SaveButton";
+import { getSavedIds } from "@/modules/listings/saves";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -93,6 +95,9 @@ export default async function ListingDetailPage({ params }: Props) {
 
   if (!listing) notFound();
 
+  const savedIds = user ? await getSavedIds() : [];
+  const isSaved = savedIds.includes(listing.id);
+
   const isSeller = user?.id === listing.sellerId;
   const isUnavailable = listing.status !== "active";
   const priceLabel = formatPrice(listing.priceKobo, listing.type);
@@ -121,13 +126,22 @@ export default async function ListingDetailPage({ params }: Props) {
         <div className="mt-6 lg:mt-0">
           {/* Price leads. The title is still the page's h1 for screen readers. */}
           <div className="flex flex-col">
-            <p
-              className={`order-1 font-extrabold leading-none tracking-tight tabular-nums text-ink ${
-                hasNumericPrice ? "text-[2rem]" : "text-2xl"
-              }`}
-            >
-              {priceLabel}
-            </p>
+            <div className="order-1 flex items-start justify-between gap-4">
+              <p
+                className={`font-extrabold leading-none tracking-tight tabular-nums text-ink ${
+                  hasNumericPrice ? "text-[2rem]" : "text-2xl"
+                }`}
+              >
+                {priceLabel}
+              </p>
+              {!isSeller && (
+                <SaveButton
+                  listingId={listing.id}
+                  initiallySaved={isSaved}
+                  variant="detail"
+                />
+              )}
+            </div>
             <h1 className="order-2 mt-2.5 text-balance text-xl font-bold leading-snug text-ink">
               {listing.title}
             </h1>
@@ -218,7 +232,7 @@ export default async function ListingDetailPage({ params }: Props) {
             </div>
           )}
 
-                    {isSeller && (
+          {isSeller && (
             <div className="mt-7">
               <Link
                 href="/profile/listings"

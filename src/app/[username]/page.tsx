@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/modules/identity/session";
 import { getStorefront, getSellerListings } from "@/modules/listings/repo";
+import { getSavedIds } from "@/modules/listings/saves";
 import { ListingGrid } from "@/modules/listings/ListingGrid";
 import { ShareButton } from "@/modules/listings/ShareButton";
 
@@ -53,6 +54,7 @@ export default async function StorefrontPage({ params }: Props) {
   if (!store) notFound();
 
   const listings = await getSellerListings(store.id);
+  const savedIdList = viewer ? await getSavedIds() : [];
   const isSelf = viewer?.id === store.id;
 
   const shareUrl = `https://kamplug.vercel.app/@${store.username}`;
@@ -122,7 +124,7 @@ export default async function StorefrontPage({ params }: Props) {
         </div>
 
         {listings.length > 0 ? (
-          <ListingGrid listings={listings} />
+          <ListingGrid listings={listings} savedIds={new Set(savedIdList)} />
         ) : (
           <div className="rounded-3xl border border-line bg-surface px-6 py-14 text-center">
             <p className="text-base font-semibold text-ink">

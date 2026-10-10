@@ -1,5 +1,6 @@
 import { requireOnboarded } from "@/modules/identity/session";
 import { listCategories, getFeed } from "@/modules/listings/repo";
+import { getSavedIds } from "@/modules/listings/saves";
 import { CategoryChips } from "@/modules/listings/CategoryChips";
 import { EmptyFeed } from "@/modules/listings/EmptyFeed";
 import { ListingGrid } from "@/modules/listings/ListingGrid";
@@ -19,7 +20,7 @@ export default async function HomePage({ searchParams }: Props) {
   const activeSlug = params.category;
   const query = params.q?.trim() || undefined;
 
-  const [categories, feed, uni] = await Promise.all([
+  const [categories, feed, uni, savedIdList] = await Promise.all([
     listCategories(),
     getFeed(user.universityId!, activeSlug, query),
     db
@@ -28,6 +29,7 @@ export default async function HomePage({ searchParams }: Props) {
       .where(eq(universities.id, user.universityId!))
       .limit(1)
       .then((rows) => rows[0]),
+    getSavedIds(),
   ]);
 
   const universityName = uni?.shortName ?? "your campus";
@@ -63,7 +65,7 @@ export default async function HomePage({ searchParams }: Props) {
 
       <div className="mt-6">
         {hasListings ? (
-          <ListingGrid listings={feed} />
+          <ListingGrid listings={feed} savedIds={new Set(savedIdList)} />
         ) : (
           <EmptyFeed
             universityName={universityName}

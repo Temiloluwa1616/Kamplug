@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { FeedListing } from "./repo";
+import { SaveButton } from "./SaveButton";
 
 function formatPrice(listing: FeedListing): string {
   if (listing.priceKobo === null) {
@@ -57,7 +58,13 @@ function PlaceholderImage() {
  * Borderless, image-first card. The photo is the hero, the price is the
  * strongest thing under it, and nothing else competes.
  */
-export function ListingCard({ listing }: { listing: FeedListing }) {
+export function ListingCard({
+  listing,
+  initiallySaved,
+}: {
+  listing: FeedListing;
+  initiallySaved?: boolean;
+}) {
   const price = formatPrice(listing);
   const hasNumericPrice = listing.priceKobo !== null;
   const sellerName = listing.sellerUsername
@@ -83,6 +90,12 @@ export function ListingCard({ listing }: { listing: FeedListing }) {
         ) : (
           <PlaceholderImage />
         )}
+
+        <SaveButton
+          listingId={listing.id}
+          initiallySaved={Boolean(initiallySaved)}
+        />
+
         {/* Hairline so pale product photos don't dissolve into the page */}
         <span
           aria-hidden="true"
