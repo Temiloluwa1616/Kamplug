@@ -3,8 +3,10 @@ import Link from "next/link";
 import { getCurrentUser } from "@/modules/identity/session";
 import { getStorefront, getSellerListings } from "@/modules/listings/repo";
 import { getSavedIds } from "@/modules/listings/saves";
+import { getBlockedIds } from "@/modules/trust/actions";
 import { ListingGrid } from "@/modules/listings/ListingGrid";
 import { ShareButton } from "@/modules/listings/ShareButton";
+import { BlockButton } from "@/modules/trust/BlockButton";
 
 type Props = {
   params: Promise<{ username: string }>;
@@ -23,7 +25,7 @@ export async function generateMetadata({ params }: Props) {
 
 function VerifiedTick() {
   return (
-    <svg width="18" height="18" viewBox="0 0 14 14" aria-hidden="true" className="shrink-0">
+    <svg width="18" height="18" viewBox="0 0 14 14" role="img" aria-label="Verified" className="shrink-0">
       <circle cx="7" cy="7" r="7" fill="var(--color-verified)" />
       <path
         d="M4 7.2l2 2L10 5"
@@ -41,7 +43,6 @@ export default async function StorefrontPage({ params }: Props) {
   const { username } = await params;
   const decoded = decodeURIComponent(username);
 
-  // Require the @ prefix. Bare /tunde 404s so top-level routes stay safe.
   if (!decoded.startsWith("@")) notFound();
   const clean = decoded.slice(1).toLowerCase();
   if (!clean) notFound();
@@ -53,10 +54,14 @@ export default async function StorefrontPage({ params }: Props) {
 
   if (!store) notFound();
 
-  const listings = await getSellerListings(store.id);
-  const savedIdList = viewer ? await getSavedIds() : [];
-  const isSelf = viewer?.id === store.id;
+  const [listings, savedIdList, blockedIds] = await Promise.all([
+    getSellerListings(store.id),
+    viewer ? getSavedIds() : Promise.resolve([] as string[]),
+    viewer ? getBlockedIds() : Promise.resolve([] as string[]),
+  ]);
 
+  const isSelf = viewer?.id === store.id;
+  const isBlocked = blockedIds.includes(store.id);
   const shareUrl = `https://kamplug.vercel.app/@${store.username}`;
 
   return (
@@ -102,13 +107,19 @@ export default async function StorefrontPage({ params }: Props) {
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <ShareButton url={shareUrl} title={`@${store.username} on KamPlug`} />
-          {isSelf && (
+          {isSelf ? (
             <Link
               href="/profile"
               className="inline-flex h-11 items-center rounded-full bg-brand px-5 text-sm font-semibold text-on-brand transition active:scale-[0.98]"
             >
               Edit profile
             </Link>
+          ) : (
+            <BlockButton
+              userId={store.id}
+              username={store.username}
+              initiallyBlocked={isBlocked}
+            />
           )}
         </div>
       </section>

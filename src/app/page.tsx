@@ -1,5 +1,5 @@
 import { requireOnboarded } from "@/modules/identity/session";
-import { listCategories, getFeed } from "@/modules/listings/repo";
+import { listCategories, getFeed, getBlockedIds } from "@/modules/listings/repo";
 import { getSavedIds } from "@/modules/listings/saves";
 import { CategoryChips } from "@/modules/listings/CategoryChips";
 import { EmptyFeed } from "@/modules/listings/EmptyFeed";
@@ -20,9 +20,11 @@ export default async function HomePage({ searchParams }: Props) {
   const activeSlug = params.category;
   const query = params.q?.trim() || undefined;
 
+  const blockedIds = await getBlockedIds(user.id);
+
   const [categories, feed, uni, savedIdList] = await Promise.all([
     listCategories(),
-    getFeed(user.universityId!, activeSlug, query),
+    getFeed(user.universityId!, activeSlug, query, blockedIds),
     db
       .select({ shortName: universities.shortName })
       .from(universities)

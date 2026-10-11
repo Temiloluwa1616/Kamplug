@@ -152,6 +152,39 @@ export default async function ProfilePage() {
         />
       </section>
 
+      {/* Account settings */}
+      <section className="mt-6 overflow-hidden rounded-3xl border border-line bg-surface">
+        <Link
+          href="/profile/blocked"
+          className="flex items-center justify-between gap-3 px-5 py-4 transition hover:bg-sand sm:px-6"
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex size-9 items-center justify-center rounded-full bg-sand text-ink-muted">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M12 3l8 3v5.5c0 4.5-3.4 8.5-8 9.5-4.6-1-8-5-8-9.5V6l8-3z"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <span className="text-[15px] font-semibold text-ink">
+              Blocked accounts
+            </span>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="text-ink-muted">
+            <path
+              d="M6.5 4l4 4-4 4"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </Link>
+      </section>
+
       {/* Sign out */}
       <div className="mt-8">
         <Link

@@ -6,6 +6,7 @@ import { ImageCarousel } from "@/modules/listings/ImageCarousel";
 import { WhatsAppButton } from "@/modules/listings/WhatsAppButton";
 import { SaveButton } from "@/modules/listings/SaveButton";
 import { getSavedIds } from "@/modules/listings/saves";
+import { ReportButton } from "@/modules/trust/ReportButton";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -243,6 +244,12 @@ export default async function ListingDetailPage({ params }: Props) {
                 </svg>
                 Manage this listing
               </Link>
+            </div>
+          )}
+
+          {!isSeller && (
+            <div className="mt-7 flex justify-center">
+              <ReportButton listingId={listing.id} />
             </div>
           )}
         </div>

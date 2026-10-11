@@ -1,4 +1,4 @@
-import { asc, desc, eq, and, inArray, ilike, or, sql } from "drizzle-orm";
+import { asc, desc, eq, and, inArray, ilike, or, sql, notInArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   categories,
@@ -8,6 +8,7 @@ import {
   pickupLocations,
   universities,
   users,
+  blocks,
 } from "@/lib/db/schema";
 
 export async function listCategories() {
@@ -33,6 +34,14 @@ export async function listPickupLocations(universityId: string) {
     .orderBy(asc(pickupLocations.name));
 }
 
+export async function getBlockedIds(userId: string): Promise<string[]> {
+  const rows = await db
+    .select({ blockedId: blocks.blockedId })
+    .from(blocks)
+    .where(eq(blocks.blockerId, userId));
+  return rows.map((r) => r.blockedId);
+}
+
 export type FeedListing = {
   id: string;
   title: string;
@@ -49,7 +58,8 @@ export type FeedListing = {
 export async function getFeed(
   universityId: string,
   categorySlug?: string,
-  query?: string
+  query?: string,
+  blockedIds: string[] = []
 ): Promise<FeedListing[]> {
   // Resolve category slug to id if provided.
   let categoryId: string | undefined;
@@ -77,6 +87,9 @@ export async function getFeed(
         ilike(listings.description, pattern)
       )!
     );
+  }
+  if (blockedIds.length > 0) {
+    conditions.push(notInArray(listings.sellerId, blockedIds));
   }
 
   const rows = await db
@@ -142,7 +155,6 @@ export type ListingDetail = {
   sellerBio: string | null;
   images: string[];
 };
-
 
 export async function getListingDetail(
   listingId: string

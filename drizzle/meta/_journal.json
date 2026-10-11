@@ -43,6 +43,13 @@
       "when": 1791671739153,
       "tag": "0005_misty_nuke",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791675126101,
+      "tag": "0006_kind_vermin",
+      "breakpoints": true
     }
   ]
 }
